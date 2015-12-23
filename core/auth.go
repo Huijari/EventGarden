@@ -33,27 +33,6 @@ type Token struct {
 	Signature []byte
 }
 
-// Validate a token and returns the userid.
-func AuthToken(token Token) (uint64, error) {
-	userid := []byte(strconv.FormatUint(token.Userid, 10))
-	expires := []byte(token.Expires.Format(time.RFC3339))
-	signature := token.Signature
-
-	secret := []byte("secret") // TODO: Get by configuration
-	mac := hmac.New(sha256.New, secret)
-	mac.Write(userid)
-	mac.Write(expires)
-	hash := mac.Sum(nil)
-
-	if hmac.Equal(hash, signature) {
-		if token.Expires.Before(time.Now()) {
-			return token.Userid, nil
-		}
-		return 0, errors.New("Expired Token")
-	}
-	return 0, errors.New("Invalid token")
-}
-
 // Encode a token into a string, format: userid.expires.signature.
 func EncodeToken(token Token) string {
 	userid := strconv.FormatUint(token.Userid, 10)
@@ -62,7 +41,7 @@ func EncodeToken(token Token) string {
 	expires := token.Expires.Format(time.RFC3339)
 	expires = base64.URLEncoding.EncodeToString([]byte(expires))
 
-	signature := string(token.Signature)
+	signature := base64.URLEncoding.EncodeToString(token.Signature)
 
 	return userid + "." + expires + "." + signature
 }
@@ -76,7 +55,7 @@ func DecodeToken(encoded string) (Token, error) {
 		return token, errors.New("Invalid Token Format")
 	}
 
-	decoded, err := base64.StdEncoding.DecodeString(sections[0])
+	decoded, err := base64.URLEncoding.DecodeString(sections[0])
 	if err != nil {
 		return token, err
 	}
@@ -85,7 +64,7 @@ func DecodeToken(encoded string) (Token, error) {
 		return token, err
 	}
 
-	decoded, err = base64.StdEncoding.DecodeString(sections[1])
+	decoded, err = base64.URLEncoding.DecodeString(sections[1])
 	if err != nil {
 		return token, err
 	}
@@ -94,7 +73,11 @@ func DecodeToken(encoded string) (Token, error) {
 		return token, err
 	}
 
-	signature := []byte(sections[2])
+	decoded, err = base64.URLEncoding.DecodeString(sections[2])
+	if err != nil {
+		return token, err
+	}
+	signature := decoded
 
 	token.Userid = userid
 	token.Expires = expires
@@ -114,7 +97,7 @@ func GenerateToken(content uint64) Token {
 	userid := []byte(strconv.FormatUint(token.Userid, 10))
 	expires := []byte(token.Expires.Format(time.RFC3339))
 
-	secret := []byte("secret") // TODO: Get by configuration
+	secret := []byte("Secret") // TODO: Get by configuration
 	mac := hmac.New(sha256.New, secret)
 	mac.Write(userid)
 	mac.Write(expires)
@@ -122,4 +105,25 @@ func GenerateToken(content uint64) Token {
 	token.Signature = hash
 
 	return token
+}
+
+// Validate a token and returns the userid.
+func ValidateToken(token Token) (uint64, error) {
+	userid := []byte(strconv.FormatUint(token.Userid, 10))
+	expires := []byte(token.Expires.Format(time.RFC3339))
+	signature := token.Signature
+
+	secret := []byte("Secret") // TODO: Get by configuration
+	mac := hmac.New(sha256.New, secret)
+	mac.Write(userid)
+	mac.Write(expires)
+	hash := mac.Sum(nil)
+
+	if hmac.Equal(hash, signature) {
+		if token.Expires.After(time.Now()) {
+			return token.Userid, nil
+		}
+		return 0, errors.New("Expired Token")
+	}
+	return 0, errors.New("Invalid token")
 }
