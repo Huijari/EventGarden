@@ -90,14 +90,14 @@ func DecodeToken(encoded string) (Token, error) {
 func GenerateToken(content uint64) Token {
 	var token Token
 
-	duration, _ := time.ParseDuration("1h") // TODO: Get by configuration
+	duration := Conf.Expiration
 	token.Userid = content
 	token.Expires = time.Now().Add(duration)
 
 	userid := []byte(strconv.FormatUint(token.Userid, 10))
 	expires := []byte(token.Expires.Format(time.RFC3339))
 
-	secret := []byte("Secret") // TODO: Get by configuration
+	secret := Conf.Secret
 	mac := hmac.New(sha256.New, secret)
 	mac.Write(userid)
 	mac.Write(expires)
@@ -113,7 +113,7 @@ func ValidateToken(token Token) (uint64, error) {
 	expires := []byte(token.Expires.Format(time.RFC3339))
 	signature := token.Signature
 
-	secret := []byte("Secret") // TODO: Get by configuration
+	secret := Conf.Secret
 	mac := hmac.New(sha256.New, secret)
 	mac.Write(userid)
 	mac.Write(expires)
