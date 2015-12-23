@@ -22,20 +22,19 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
-	"strconv"
 	"strings"
 	"time"
 )
 
 type Token struct {
-	Userid    uint64
+	Userid    string
 	Expires   time.Time
 	Signature []byte
 }
 
 // Encode a token into a string, format: userid.expires.signature.
 func EncodeToken(token Token) string {
-	userid := strconv.FormatUint(token.Userid, 10)
+	userid := token.Userid
 	userid = base64.URLEncoding.EncodeToString([]byte(userid))
 
 	expires := token.Expires.Format(time.RFC3339)
@@ -59,10 +58,7 @@ func DecodeToken(encoded string) (Token, error) {
 	if err != nil {
 		return token, err
 	}
-	userid, err := strconv.ParseUint(string(decoded), 10, 64)
-	if err != nil {
-		return token, err
-	}
+	userid := string(decoded)
 
 	decoded, err = base64.URLEncoding.DecodeString(sections[1])
 	if err != nil {
@@ -87,14 +83,14 @@ func DecodeToken(encoded string) (Token, error) {
 }
 
 // Generate a new token to the userid specified.
-func GenerateToken(content uint64) Token {
+func GenerateToken(content string) Token {
 	var token Token
 
 	duration := Conf.Expiration
 	token.Userid = content
 	token.Expires = time.Now().Add(duration)
 
-	userid := []byte(strconv.FormatUint(token.Userid, 10))
+	userid := []byte(token.Userid)
 	expires := []byte(token.Expires.Format(time.RFC3339))
 
 	secret := Conf.Secret
@@ -108,8 +104,8 @@ func GenerateToken(content uint64) Token {
 }
 
 // Validate a token and returns the userid.
-func ValidateToken(token Token) (uint64, error) {
-	userid := []byte(strconv.FormatUint(token.Userid, 10))
+func ValidateToken(token Token) (string, error) {
+	userid := []byte(token.Userid)
 	expires := []byte(token.Expires.Format(time.RFC3339))
 	signature := token.Signature
 
@@ -123,7 +119,7 @@ func ValidateToken(token Token) (uint64, error) {
 		if token.Expires.After(time.Now()) {
 			return token.Userid, nil
 		}
-		return 0, errors.New("Expired Token")
+		return "", errors.New("Expired Token")
 	}
-	return 0, errors.New("Invalid token")
+	return "", errors.New("Invalid token")
 }
